@@ -336,6 +336,25 @@ abstract class BaseTransacterImpl(protected val driver: SqlDriver) {
       append(')')
     }
   }
+
+  protected fun createArguments(startIndex: Int, count: Int, indexPrefix: String): String {
+    return buildString {
+      append('(')
+
+      val args = (0..< count).joinToString(",") {
+        val index = startIndex + it
+        createPositionalArgument(index, indexPrefix)
+      }
+      append(args)
+
+      append(')')
+    }
+  }
+
+  protected fun createPositionalArgument(position: Int, prefix: String): String {
+    require(prefix.isNotEmpty())
+    return prefix + position
+  }
 }
 
 /**

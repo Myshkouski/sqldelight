@@ -148,13 +148,24 @@ abstract class QueryGenerator(
       // val idIndexes = id.mapIndexed { index, _ -> "?${previousArray.size + index}" }.joinToString(prefix = "(", postfix = ")")
       val offset = (precedingArrays.map { "$it.size" } + "$nonArrayBindArgsCount")
         .joinToString(separator = " + ").replace(" + 0", "")
+
+      val bindParameterMixin = bindArg?.bindParameter as? BindParameterMixin
+      val isPositionalArgumentRequired = true == bindParameterMixin?.isPositionalArgumentRequired
+
       if (bindArg?.isArrayParameter() == true) {
         needsFreshStatement = true
 
         if (!handledArrayArgs.contains(argument) && seenArrayArguments.add(argument)) {
+          var createArgumentsParams = "count = ${type.name}.size"
+
+          if (isPositionalArgumentRequired) {
+            val indexPrefix = bindParameterMixin!!.positionalArgumentPrefix
+            createArgumentsParams += ", startIndex = 1 + $offset, indexPrefix = \"$indexPrefix\""
+          }
+
           result.addStatement(
             """
-            |val ${type.name}Indexes = createArguments(count = ${type.name}.size)
+            |val ${type.name}Indexes = createArguments($createArgumentsParams)
             """.trimMargin(),
           )
         }
@@ -219,7 +230,12 @@ abstract class QueryGenerator(
           // This allows us to use the same algorithm for non Sqlite dialects
           // :name becomes ?
           if (bindParameter != null) {
-            replacements.add(bindArg.range to bindParameter.replaceWith(generateAsync, index = nonArrayBindArgsCount))
+            val replacement = if (isPositionalArgumentRequired) {
+              "\${createPositionalArgument(1 + $offset, \"${bindParameterMixin!!.positionalArgumentPrefix}\")}"
+            } else {
+              "?"
+            }
+            replacements.add(bindArg.range to replacement)
           }
         }
       }
@@ -336,6 +352,18 @@ abstract class QueryGenerator(
   private fun PsiElement.rightWhitespace(): String {
     return if (nextSibling is PsiWhiteSpace) "" else " "
   }
+
+  private val BindParameterMixin.isPositionalArgumentRequired: Boolean
+    get() {
+      val replaceResult = replaceWith(false, 0)
+      return replaceResult.endsWith("0")
+    }
+
+  private val defaultPositionalArgumentPrefix: String
+      get() = "$"
+
+  private val BindParameterMixin.positionalArgumentPrefix: String
+    get() = defaultPositionalArgumentPrefix
 
   protected fun addJavadoc(builder: FunSpec.Builder) {
     if (query.javadoc != null) {
