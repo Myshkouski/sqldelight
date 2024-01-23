@@ -167,7 +167,8 @@ object SqlDelightCompiler {
     file: SqlDelightQueriesFile,
     output: FileAppender,
   ) {
-    val packageName = file.packageName ?: return
+    val fileIndex = SqlDelightFileIndex.getInstance(module)
+    val packageName = fileIndex.packageName
     val queriesType = QueriesTypeGenerator(module, file, dialect)
       .generateType(packageName) ?: return
 
